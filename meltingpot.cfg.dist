@@ -1,0 +1,28 @@
+[general]
+
+# FTP server host
+host = 127.0.0.1
+
+# FTP server port
+port = 2221
+
+# FTP server banner
+banner = 220 RTCS FTP Ready
+
+# Returned by FTP server upon SYST request
+system = 215 Unix
+
+# Honeypot log file
+logfile = melting.log
+
+# Accepted credentials for FTP server
+credentials_file = creds.cfg
+
+# Root directory that FTP users will see
+ftproot = ./ftproot
+
+# When FTP users upload files, they are copied to this honeypot directory
+upload_dir = ./uploads
+
+
+
