@@ -11,7 +11,7 @@ import time
 import hashlib
 from threading import Thread
 
-CONFIG_FILE='meltingpot.cfg'
+CONFIG_FILE='./meltingpot.cfg'
 DEBUG = True
 
 
@@ -140,7 +140,7 @@ class FtpServerThread(Thread):
     def PASV(self,data): # from http://goo.gl/3if2U
         self.pasv_mode = True
         self.servsock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        self.servsock.bind((local_ip,0))
+        self.servsock.bind((self.meltingpot.host,0))
         self.servsock.listen(1)
         ip, port = self.servsock.getsockname()
         print("[+] Passive Mode: opening {0}:{1}".format(ip, port))
@@ -158,7 +158,7 @@ class FtpServerThread(Thread):
         self.dataPort=(int(l[4])<<8)+int(l[5])
         if DEBUG:
             print("[debug] PORT: addr={0} port={1}".format(self.dataAddr, self.dataPort))
-        self.conn.send(b'200 Get port.\r\n')
+        self.conn.send(b'200 PORT command successful\r\n')
         return True
 
     def CWD(self, data):
@@ -230,12 +230,20 @@ class FtpServerThread(Thread):
 
         try:
             self.start_datasock()
+        except Exception as e:
+            if DEBUG:
+                print("[debug] opening data sock error: ",e)
+            self.conn.sendall(b'425 Connection failed\n')
+            return False
+                
+        try:
             for t in os.listdir(self.meltingpot.ftproot):
                 k=self.toListItem(os.path.join(self.meltingpot.ftproot,t))
                 self.datasock.send(bytes(k+'\r\n', 'utf-8'))
             message='226 Directory send OK'
             self.stop_datasock()    
         except Exception as e:
+            traceback.print_exc()
             if DEBUG:
                 print("[debug] LIST error: data={0} e={1}".format(data,e))
             message='451 Directory KO'
