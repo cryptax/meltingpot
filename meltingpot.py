@@ -250,6 +250,10 @@ class FtpServerThread(Thread):
     def MODE(self, data):
         self.conn.send(b'200 OK\n')
         return True
+
+    def FEAT(self, data):
+        self.conn.send(b'500 Unsupported command\n')
+        return True
     
     def start_datasock(self):
         if self.pasv_mode:
