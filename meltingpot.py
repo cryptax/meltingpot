@@ -155,7 +155,7 @@ class FtpServerThread(Thread):
             return None, None
 
         # listen on passive port
-        self.servsock.bind((self.meltingpot.host,self.passive_port))
+        self.servsock.bind((self.meltingpot.public_ip,self.passive_port))
         self.servsock.listen(1)
         ip, port = self.servsock.getsockname()
         assert port == self.passive_port, "[ERROR] PASV: serversock is on port={0} while we expected port={1}".format(port, self.passive_port) # this should never occur
@@ -408,6 +408,7 @@ class meltingpot:
         self.configparser = configparser.ConfigParser()
         self.configparser.read(configfile)
 
+        self.public_ip = self.configparser.get('general', 'public_ip')
         self.host = self.configparser.get('general','host', fallback='127.0.0.1')
         self.port = self.configparser.getint('general', 'port', fallback='2221')
         self.banner = self.configparser.get('general', 'banner', fallback='220 FTP Ready')
