@@ -133,7 +133,7 @@ class FtpServerThread(Thread):
                 self.binary = False
                 
             if DEBUG:
-                print("[debug] TYPE() Setting mode={0} binary={1}".format(mode,binary))
+                print("[debug] TYPE() Setting mode={0} binary={1}".format(mode,self.binary))
 
             return True
         
