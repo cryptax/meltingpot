@@ -155,7 +155,7 @@ class FtpServerThread(Thread):
             return None
 
         # listen on passive port
-        self.servsock.bind((self.meltingpot.public_ip,self.passive_port))
+        self.servsock.bind((self.meltingpot.host,self.passive_port))
         self.servsock.listen(1)
         ip, port = self.servsock.getsockname()
         assert port == self.passive_port, "[ERROR] PASV: serversock is on port={0} while we expected port={1}".format(port, self.passive_port) # this should never occur
