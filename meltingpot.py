@@ -152,7 +152,7 @@ class FtpServerThread(Thread):
         self.select_passive_port()
         if self.passive_port is None:
             self.conn.send(b'500 Sorry\n')
-            return None, None
+            return None
 
         # listen on passive port
         self.servsock.bind((self.meltingpot.public_ip,self.passive_port))
@@ -162,15 +162,15 @@ class FtpServerThread(Thread):
 
         if DEBUG:
             print("[debug] PASV: listening on {0}:{1}".format(ip, port))
-        return ip, port
+        return port
 
     def PASV(self, data):
-        ip, port = self.passive_mode(data)
-        if ip is None or port is None:
+        port = self.passive_mode(data)
+        if port is None:
             return False
 
         # notify client which passive port we use
-        self.conn.send(bytes('227 Entering Passive Mode (%s,%u,%u).\r\n' %(','.join(ip.split('.')), port>>8&0xFF, port&0xFF), 'utf-8'))
+        self.conn.send(bytes('227 Entering Passive Mode (%s,%u,%u).\r\n' %(','.join(self.meltingpot.public_ip.split('.')), port>>8&0xFF, port&0xFF), 'utf-8'))
         return True
 
     def EPSV(self, data):
