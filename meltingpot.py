@@ -9,11 +9,10 @@ import traceback
 import os
 import time
 import hashlib
-from threading import Thread
+from threading import Thread, Lock
 
 CONFIG_FILE='./meltingpot.cfg'
 DEBUG = True
-
 
 class FtpServerThread(Thread):
 
@@ -25,7 +24,9 @@ class FtpServerThread(Thread):
         self.pasv_mode = False
         self.binary = False
         self.user = ''
-        self.datasock = None
+        self.servsock = None # FTP server listens on that socket in passive mode
+        self.datasock = None # client socket connected to servsock
+        self.passive_port = None # e.g 30001
         Thread.__init__(self)
 
     def log(self, message):
@@ -63,7 +64,13 @@ class FtpServerThread(Thread):
                 break
 
         if DEBUG:
-            print("[debug] closing connection and thread")
+            print("[debug] run() closing sockets and thread")
+        if self.passive_port is not None:
+            self.release_passive_port()
+        if self.servsock is not None:
+            self.servsock.close()
+        if self.datasock is not None:
+            self.datasock.close()
         self.conn.close()
 
 
@@ -88,7 +95,7 @@ class FtpServerThread(Thread):
                 self.is_logged = True
         except KeyError as e:
             if DEBUG:
-                print("[debug] unknown user: {0}".format(self.user))
+                print("[debug] PASS(): unknown user: {0}".format(self.user))
 
         if not self.is_logged:
             message += ' failed'
@@ -126,27 +133,65 @@ class FtpServerThread(Thread):
                 self.binary = False
                 
             if DEBUG:
-                print("[debug] Setting mode={0} binary={1}".format(mode,binary))
+                print("[debug] TYPE() Setting mode={0} binary={1}".format(mode,binary))
 
             return True
         
         except IndexError as e:
             if DEBUG:
-                print("[debug] IndexError: data={0} exc={1}".format(data,e))
+                print("[debug] TYPE() IndexError: data={0} exc={1}".format(data,e))
         return False
                 
             
 
-    def PASV(self,data): # from http://goo.gl/3if2U
+    def PASV(self,data):
+        # in passive mode, server decides the data port, and client is meant to connect
         self.pasv_mode = True
         self.servsock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        self.servsock.bind((self.meltingpot.host,0))
+        self.servsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        
+        # selecting passive port and exit if none left
+        self.select_passive_port()
+        if self.passive_port is None:
+            self.conn.send(b'500 Sorry\n')
+            return False
+
+        # listen on passive port
+        self.servsock.bind((self.meltingpot.host,self.passive_port))
         self.servsock.listen(1)
         ip, port = self.servsock.getsockname()
-        print("[+] Passive Mode: opening {0}:{1}".format(ip, port))
-        self.conn.send('227 Entering Passive Mode (%s,%u,%u).\r\n' %
-                (','.join(ip.split('.')), port>>8&0xFF, port&0xFF))
+        assert port == self.passive_port, "[ERROR] PASV: serversock is on port={0} while we expected port={1}".format(port, self.passive_port) # this should never occur
+
+        if DEBUG:
+            print("[debug] PASV: listening on {0}:{1}".format(ip, port))
+
+        # notify client which passive port we use
+        self.conn.send(bytes('227 Entering Passive Mode (%s,%u,%u).\r\n' %(','.join(ip.split('.')), port>>8&0xFF, port&0xFF), 'utf-8'))
         return True
+
+    def select_passive_port(self):
+        self.meltingpot.lock.acquire()
+        for i in range(0, self.meltingpot.nb_passive_ports):
+            if DEBUG:
+                print("[debug] passive_ports[{0}]={1}".format(i, self.meltingpot.passive_ports[i]))
+            if self.meltingpot.passive_ports[i] == False:
+                self.meltingpot.passive_ports[i] = True
+                self.meltingpot.lock.release()
+                self.passive_port = self.meltingpot.first_passive_port + i
+                if DEBUG:
+                    print("[debug] Selecting passive port: ", self.passive_port)
+                return self.passive_port
+        self.meltingpot.lock.release()
+        self.passive_port = None
+        print("[-] No available passive ports left")
+        return None
+
+    def release_passive_port(self):
+        if DEBUG:
+            print("[debug] Releasing passive port ",self.passive_port)
+        self.meltingpot.lock.acquire()
+        self.meltingpot.passive_ports[self.passive_port-self.meltingpot.first_passive_port] = False
+        self.meltingpot.lock.release()
         
     def PORT(self, data):
         if self.pasv_mode:
@@ -210,20 +255,28 @@ class FtpServerThread(Thread):
         if self.pasv_mode:
             self.datasock, addr = self.servsock.accept()
             if DEBUG:
-                print("[debug] passive mode - opening data sock on {0}:{1}".format(addr[0], addr[1]))
+                print("[debug] start_datasock() passive mode: accepting incoming connection on port {0}: client={1}:{2}".format(self.passive_port, addr[0], addr[1]))
         else:
-            # if dataAddr and port haven't been set, connection will fail
-            self.datasock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            self.datasock.connect((self.dataAddr,self.dataPort))
+            # in active mode, client should normally have set address and port to use
+            # with PORT command, which sets dataAddr and dataPort
+            # this is not a secure option... but some old FTP clients use it
+
+            # In our honeypot, we won't even care to try and make this work
+            # self.datasock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            # self.datasock.connect((self.dataAddr,self.dataPort))
             if DEBUG:
-                print("[debug] opening data sock on {0}:{1}".format(self.dataAddr, self.dataPort))
+                print("[debug] start_datasock(): active mode not supported")
+            raise Exception("Active mode not supported")
 
     def stop_datasock(self):
         if DEBUG:
-            print("[debug] closing data sock")
+            print("[debug] stop_datasock()")
         self.datasock.close()
         if self.pasv_mode:
+            if DEBUG:
+                print('[debug] closing servsock')
             self.servsock.close()
+            self.release_passive_port()
 
     def LIST(self, data):
         self.conn.send(b'150 Opening ASCII mode data connection.\r\n')
@@ -232,7 +285,7 @@ class FtpServerThread(Thread):
             self.start_datasock()
         except Exception as e:
             if DEBUG:
-                print("[debug] opening data sock error: ",e)
+                print("[debug] LIST(): opening data sock error: ",e)
             self.conn.sendall(b'425 Connection failed\n')
             return False
                 
@@ -245,7 +298,7 @@ class FtpServerThread(Thread):
         except Exception as e:
             traceback.print_exc()
             if DEBUG:
-                print("[debug] LIST error: data={0} e={1}".format(data,e))
+                print("[debug] LIST() error: data={0} e={1}".format(data,e))
             message='451 Directory KO'
         
         self.conn.send(bytes(message+'\r\n', 'utf-8'))
@@ -294,7 +347,7 @@ class FtpServerThread(Thread):
         fi.close()
         self.stop_datasock()
         self.conn.send(b'226 Transfer complete.\r\n')
-        log("Downloaded file {0}".format(data[5:-2]))
+        self.log("Downloaded file {0}".format(data[5:-2]))
         return True
 
     def STOR(self,data):
@@ -335,23 +388,27 @@ class FtpServerThread(Thread):
 class meltingpot:
     def __init__(self, configfile=CONFIG_FILE):
         self.configfile = configfile
-        self.configparser = configparser.RawConfigParser()
+        self.configparser = configparser.ConfigParser()
         self.configparser.read(configfile)
 
-        self.host = self.configparser.get('general','host')
-        self.port = self.configparser.getint('general', 'port')
-        self.banner = self.configparser.get('general', 'banner')
-        self.system = self.configparser.get('general', 'system')
-        self.logfile = self.configparser.get('general', 'logfile')
-        self.creds = self.configparser.get('general', 'credentials_file')
-        self.ftproot = self.configparser.get('general', 'ftproot')
-        self.upload_dir = self.configparser.get('general', 'upload_dir')
+        self.host = self.configparser.get('general','host', fallback='127.0.0.1')
+        self.port = self.configparser.getint('general', 'port', fallback='2221')
+        self.banner = self.configparser.get('general', 'banner', fallback='220 FTP Ready')
+        self.system = self.configparser.get('general', 'system', fallback='215 Unix')
+        self.logfile = self.configparser.get('general', 'logfile', fallback='meltingpot.log')
+        self.creds = self.configparser.get('general', 'credentials_file', fallback='creds.cfg')
+        self.ftproot = self.configparser.get('general', 'ftproot',fallback='./ftproot')
+        self.upload_dir = self.configparser.get('general', 'upload_dir',fallback='./uploads')
+        self.first_passive_port = self.configparser.getint('general', 'first_passive_port', fallback=30000)
+        self.nb_passive_ports = self.configparser.getint('general','nb_passive_ports', fallback=9)
 
         assert os.path.isdir(self.upload_dir), "[ERROR] Please create {0} directory".format(self.upload_dir)
         assert os.path.isdir(self.ftproot), "[ERROR] ftproot directory does not exist: {0}".format(self.ftproot)
+        assert os.path.exists(self.logfile), "[ERROR] Path for logfile does not exist: {0}".format(self.logfile)
             
         self.load_allowed_credentials(self.creds)
-        
+        self.init_passive_ports()
+        self.lock = Lock() 
         self.init_server()
 
     def load_allowed_credentials(self, filename):
@@ -364,6 +421,14 @@ class meltingpot:
                 username = u_p[0]
                 password = u_p[1]
                 self.users[username] = password
+
+    def init_passive_ports(self):
+        # this table records used ports
+        if DEBUG:
+            print("[debug] Initializing passive port table...")
+        self.passive_ports = []
+        for port in range(0, self.nb_passive_ports):
+            self.passive_ports.append(False)
         
     def init_server(self):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
