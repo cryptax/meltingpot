@@ -57,7 +57,7 @@ class FtpServerThread(Thread):
                 if not active:
                     break
             except Exception as e:
-                print("Unknown command {0}: gracefully closing connection".format(e))
+                print("Unknown command {0}: gracefully closing connection: data={1}".format(e,data))
                 if DEBUG:
                     traceback.print_exc()
                 self.conn.send(b'500 Sorry.\r\n')
@@ -164,7 +164,7 @@ class FtpServerThread(Thread):
             print("[debug] PASV: listening on {0}:{1}".format(ip, port))
         return ip, port
 
-    def PASS(self, data):
+    def PASV(self, data):
         ip, port = self.passive_mode(data)
         if ip is None or port is None:
             return False
