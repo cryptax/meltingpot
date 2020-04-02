@@ -13,6 +13,10 @@ docker-compose build
 docker-compose up -d
 ```
 
+# References
+
+- [List of FTP commands](https://en.wikipedia.org/wiki/List_of_FTP_commands)
+
 
 
 

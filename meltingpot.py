@@ -170,6 +170,8 @@ class FtpServerThread(Thread):
             return False
 
         # notify client which passive port we use
+        if DEBUG:
+            print("[debug] PASV: sending back: '227 Entering Passive Mode (%s,%u,%u).\r\n'" %(','.join(self.meltingpot.public_ip.split('.')), port>>8&0xFF, port&0xFF))
         self.conn.send(bytes('227 Entering Passive Mode (%s,%u,%u).\r\n' %(','.join(self.meltingpot.public_ip.split('.')), port>>8&0xFF, port&0xFF), 'utf-8'))
         return True
 
