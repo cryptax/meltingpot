@@ -1,6 +1,6 @@
 FROM python:3.6
 
-RUN mkdir -p /usr/share/meltingpot /var/meltingpot/fs /var/log /var/meltingpot/uploads
+RUN mkdir -p /usr/share/meltingpot /var/meltingpot/fs /var/meltingpot/uploads
 
 ADD meltingpot.py /usr/share/meltingpot
 ADD meltingpot.cfg /usr/share/meltingpot

@@ -79,7 +79,7 @@ class FtpServerThread(Thread):
         # sanitize username and keep only alphanumeric
         pattern = re.compile('[\W_]+', re.UNICODE)
         self.user = pattern.sub('', data[5:])
-        self.conn.sendall(b'331 Looking up password\n')
+        self.conn.sendall(b'331 Looking up password\r\n')
         return True
 
     def PASS(self, data):
@@ -91,7 +91,7 @@ class FtpServerThread(Thread):
         try:
             if self.meltingpot.users[self.user] == password or self.user == 'anonymous':
                 message += ' success'
-                self.conn.sendall(b'230 Login successful\n')
+                self.conn.sendall(b'230 Login successful\r\n')
                 self.is_logged = True
         except KeyError as e:
             if DEBUG:
@@ -105,7 +105,7 @@ class FtpServerThread(Thread):
         return self.is_logged
             
     def SYST(self, data):
-        self.conn.sendall(bytes(self.meltingpot.system+'\n', 'utf-8'))
+        self.conn.sendall(bytes(self.meltingpot.system+'\r\n', 'utf-8'))
         return True
 
     def OPTS(self,data):
@@ -151,7 +151,7 @@ class FtpServerThread(Thread):
         # selecting passive port and exit if none left
         self.select_passive_port()
         if self.passive_port is None:
-            self.conn.send(b'500 Sorry\n')
+            self.conn.send(b'500 Sorry\r\n')
             return None
 
         # listen on passive port
@@ -221,15 +221,15 @@ class FtpServerThread(Thread):
 
     def CWD(self, data):
         # we don't support changing directories as we want to make sure not to exit ftproot
-        self.conn.sendall(b'550 No such file or directory\n')
+        self.conn.sendall(b'550 No such file or directory\r\n')
         return True
 
     def PWD(self, data):
-        self.conn.sendall(b'257 "/"\n')
+        self.conn.sendall(b'257 "/"\r\n')
         return True
 
     def CDUP(self, data):
-        self.conn.sendall(b'200 Okay\n')
+        self.conn.sendall(b'200 Okay\r\n')
         return True
 
     def MKD(self, data):
@@ -257,15 +257,15 @@ class FtpServerThread(Thread):
         return True
 
     def STRU(self, data):
-        self.conn.send(b'200 OK\n')
+        self.conn.send(b'200 OK\r\n')
         return True
 
     def MODE(self, data):
-        self.conn.send(b'200 OK\n')
+        self.conn.send(b'200 OK\r\n')
         return True
 
     def FEAT(self, data):
-        self.conn.send(b'500 Unsupported command\n')
+        self.conn.send(b'500 Unsupported command\r\n')
         return True
     
     def start_datasock(self):
@@ -303,7 +303,7 @@ class FtpServerThread(Thread):
         except Exception as e:
             if DEBUG:
                 print("[debug] LIST(): opening data sock error: ",e)
-            self.conn.sendall(b'425 Connection failed\n')
+            self.conn.sendall(b'425 Connection failed\r\n')
             return False
                 
         try:
@@ -422,7 +422,7 @@ class meltingpot:
 
         assert os.path.isdir(self.upload_dir), "[ERROR] Please create {0} directory".format(self.upload_dir)
         assert os.path.isdir(self.ftproot), "[ERROR] ftproot directory does not exist: {0}".format(self.ftproot)
-        assert os.path.exists(self.logfile), "[ERROR] Path for logfile does not exist: {0}".format(self.logfile)
+        assert os.path.exists(os.path.dirname(self.logfile)), "[ERROR] Path for logfile does not exist: {0}".format(self.logfile)
             
         self.load_allowed_credentials(self.creds)
         self.init_passive_ports()
