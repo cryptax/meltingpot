@@ -174,8 +174,8 @@ class FtpServerThread(Thread):
         return True
 
     def EPSV(self, data):
-        ip, port = self.passive_mode(data)
-        if ip is None or port is None:
+        port = self.passive_mode(data)
+        if port is None:
             return False
 
         # notify client which passive port we use
