@@ -1,12 +1,13 @@
-version: "3"
+version: "3.2"
 services:
    meltingpot:
      build:
        context: .
      ports:
-       - "2221:2221"
-       - "30000-30009:30000-30009"
+        - "2221:2221"
+        - "30000-30009:30000-30009"
      container_name: meltingpot
      volumes:
         - ./log:/var/log
         - ./uploads:/var/meltingpot/uploads
+     network_mode: host
