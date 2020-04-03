@@ -9,6 +9,8 @@ import traceback
 import os
 import time
 import hashlib
+import datetime
+import uuid
 from threading import Thread, Lock
 
 CONFIG_FILE='./meltingpot.cfg'
@@ -16,7 +18,7 @@ DEBUG = True
 
 class FtpServerThread(Thread):
 
-    def __init__(self, conn, addr, meltingpot):
+    def __init__(self, conn, addr, session, meltingpot):
         self.conn = conn
         self.addr = addr
         self.meltingpot = meltingpot
@@ -27,6 +29,7 @@ class FtpServerThread(Thread):
         self.servsock = None # FTP server listens on that socket in passive mode
         self.datasock = None # client socket connected to servsock
         self.passive_port = None # e.g 30001
+        self.session = session # Session UUID
         Thread.__init__(self)
 
     def log(self, message):
@@ -34,12 +37,17 @@ class FtpServerThread(Thread):
         log['src_ip'] = self.addr[0]
         log['src_port'] = self.addr[1]
         log['message'] = message
+        log['session'] = self.session
+        
+        now = datetime.datetime.now()
+        log['timestamp'] = now.strftime('%Y-%m-%dT%H:%M:%S') + ('.%06d' % (now.microsecond / 10000))+ 'Z'
+
         f = open(self.meltingpot.logfile, "a+")
         f.write(json.dumps(log))
         f.write('\n')
         f.close()
         if DEBUG:
-            print("[debug] {0}: {1}:{2} {3}".format(self.meltingpot.logfile, self.addr[0], self.addr[1], message))
+            print("[debug] log() file={0}: json={1}".format(self.meltingpot.logfile, json.dumps(log)))
 
     def run(self):
         if DEBUG:
@@ -63,8 +71,8 @@ class FtpServerThread(Thread):
                 self.conn.send(b'500 Sorry.\r\n')
                 break
 
-        if DEBUG:
-            print("[debug] run() closing sockets and thread")
+        self.log("closing session")
+
         if self.passive_port is not None:
             self.release_passive_port()
         if self.servsock is not None:
@@ -346,12 +354,12 @@ class FtpServerThread(Thread):
             return f
         except Exception as e:
             if DEBUG:
-                print("[debug] Exception in openFile: filename={0} file exception={1}".format(filename,e))
+                print("[debug] Exception in openFile: filename={0} mode={1} file exception={2}".format(filename,mode, e))
             self.conn.send(b'451 Cannot perform operation\r\n')
             return None
     
     def RETR(self, data):
-        fi = self.openFile(data, 'r')
+        fi = self.openFile(data, 'rb')
         if fi == None:
             return False
 
@@ -360,7 +368,7 @@ class FtpServerThread(Thread):
         d= fi.read(1024)
         self.start_datasock()
         while d:
-            self.datasock.send(bytes(d, 'utf-8'))
+            self.datasock.send(d)
             d=fi.read(1024)
             
         fi.close()
@@ -459,7 +467,8 @@ class meltingpot:
             conn, addr = self.s.accept()
             print("Incoming connection from IP: {0}:{1}".format(addr[0], addr[1]))
             conn.sendall(bytes(self.banner+'\n', 'utf-8'))
-            FtpServerThread(conn, addr, self).start()
+            session = uuid.uuid4().hex
+            FtpServerThread(conn, addr, session, self).start()
 
 if __name__ == '__main__':
     melting = meltingpot()
