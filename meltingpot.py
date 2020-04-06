@@ -25,7 +25,9 @@ class FtpServerThread(Thread):
         self.is_logged = False
         self.pasv_mode = False
         self.binary = False
-        self.user = ''
+        self.username = ''
+        self.password = ''
+        self.ftp_verb = ''
         self.servsock = None # FTP server listens on that socket in passive mode
         self.datasock = None # client socket connected to servsock
         self.passive_port = None # e.g 30001
@@ -38,6 +40,12 @@ class FtpServerThread(Thread):
         log['src_port'] = self.addr[1]
         log['message'] = message
         log['session'] = self.session
+        log['ftp_verb'] = self.ftp_verb
+        
+        if self.username is not '':
+            log['username']= self.username
+        if self.password is not '':
+            log['password'] = self.password
         
         now = datetime.datetime.now()
         log['timestamp'] = now.strftime('%Y-%m-%dT%H:%M:%S') + ('.%06d' % (now.microsecond / 10000))+ 'Z'
@@ -60,7 +68,8 @@ class FtpServerThread(Thread):
             self.log(data)
 
             try:
-                func=getattr(self,data[:4].strip().upper())
+                self.ftp_verb = data[:4].strip().upper()
+                func=getattr(self,self.ftp_verb)
                 active = func(data)
                 if not active:
                     break
@@ -86,24 +95,24 @@ class FtpServerThread(Thread):
     def USER(self, data):
         # sanitize username and keep only alphanumeric
         pattern = re.compile('[\W_]+', re.UNICODE)
-        self.user = pattern.sub('', data[5:])
+        self.username = pattern.sub('', data[5:])
         self.conn.sendall(b'331 Looking up password\r\n')
         return True
 
     def PASS(self, data):
         # sanitize password and keep only some characters
         pattern = re.compile('[\W_#!@]+', re.UNICODE)
-        password = pattern.sub('', data[5:])
-        message = "login attempt {0}/{1}".format(self.user,password)
+        self.password = pattern.sub('', data[5:])
+        message = "login attempt {0}/{1}".format(self.username,password)
         self.is_logged = False
         try:
-            if self.meltingpot.users[self.user] == password or self.user == 'anonymous':
+            if self.meltingpot.users[self.username] == self.password or self.username == 'anonymous':
                 message += ' success'
                 self.conn.sendall(b'230 Login successful\r\n')
                 self.is_logged = True
         except KeyError as e:
             if DEBUG:
-                print("[debug] PASS(): unknown user: {0}".format(self.user))
+                print("[debug] PASS(): unknown user: {0}".format(self.username))
 
         if not self.is_logged:
             message += ' failed'
