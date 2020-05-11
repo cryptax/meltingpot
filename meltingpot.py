@@ -103,7 +103,7 @@ class FtpServerThread(Thread):
         # sanitize password and keep only some characters
         pattern = re.compile('[\W_#!@]+', re.UNICODE)
         self.password = pattern.sub('', data[5:])
-        message = "login attempt {0}/{1}".format(self.username,password)
+        message = "login attempt {0}/{1}".format(self.username,self.password)
         self.is_logged = False
         try:
             if self.meltingpot.users[self.username] == self.password or self.username == 'anonymous':
