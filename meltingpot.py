@@ -65,10 +65,10 @@ class FtpServerThread(Thread):
             data = self.conn.recv(1024).decode()
             if not data:
                 break
-            self.log(data)
 
             try:
                 self.ftp_verb = data[:4].strip().upper()
+                self.log(data)
                 func=getattr(self,self.ftp_verb)
                 active = func(data)
                 if not active:
