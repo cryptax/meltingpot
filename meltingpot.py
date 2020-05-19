@@ -286,6 +286,11 @@ class FtpServerThread(Thread):
     def FEAT(self, data):
         self.conn.send(b'500 Unsupported command\r\n')
         return True
+
+    def AUTH(self, data):
+        self.conn.send(b'500 Unsupported command\r\n')
+        return True
+        
     
     def start_datasock(self):
         if self.pasv_mode:
