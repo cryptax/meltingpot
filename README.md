@@ -6,12 +6,38 @@ Features:
 - **Logs** all commands in JSON file. Those logs can be processed by Filebeat, logstash etc.
 - Attackers who connect will see a directory. They will be able to get/put files in the directory, but won't be able to get out of the directory (for security reasons), delete or rename files.
 
-Deploy:
+# Deploy
+
+1. Configure `meltingpot.cfg` and `creds.cfg` to  your needs
+2. Inside `./fs` put the files you want to share
 
 ```
 docker-compose build
 docker-compose up -d
 ```
+
+# Example
+
+```
+$ ftp 127.0.0.1 2221
+Connected to 127.0.0.1.
+220 FTP Ready
+Name (127.0.0.1:cryptax): anonymous
+331 Looking up password
+Password:
+230 Login successful
+Remote system type is Unix.
+ftp> passive
+Passive mode on.
+ftp> ls
+227 Entering Passive Mode (0,0,0,0,117,48).
+150 Opening ASCII mode data connection.
+-rw-rw-r-- 1 root root 0 Sep 21 07:49 testfile
+226 Directory send OK
+ftp> quit
+221 Goodbye.
+```
+
 
 # References
 
