@@ -10,4 +10,4 @@ services:
      volumes:
         - ./log:/var/log
         - ./uploads:/var/meltingpot/uploads
-     network_mode: host
+

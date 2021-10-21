@@ -38,6 +38,17 @@ ftp> quit
 221 Goodbye.
 ```
 
+# Passive mode on an instance running Docker
+
+Do not forget to customize `public_ip`:
+
+```
+# This is the public IP address of the host
+# This IP address will be returned to the client when it asks for passive connection
+public_ip = 0.0.0.0
+```
+
+For example, if you are running Meltingpot in a Docker container in a Google instance, p`public_ip` should be the public IP address of  your Google instance. Otherwise, passive communication won't work (even with the right ports opened) because the FTP server needs an IP address accessible from Internet for the client to connect to the passive ports.
 
 # References
 

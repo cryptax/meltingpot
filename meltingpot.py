@@ -42,9 +42,9 @@ class FtpServerThread(Thread):
         log['session'] = self.session
         log['ftp_verb'] = self.ftp_verb
         
-        if self.username is not '':
+        if self.username != '':
             log['username']= self.username
-        if self.password is not '':
+        if self.password != '':
             log['password'] = self.password
         
         now = datetime.datetime.now()
@@ -392,6 +392,10 @@ class FtpServerThread(Thread):
         return True
 
     def STOR(self,data):
+        if not self.meltingpot.enable_upload:
+            self.conn.send(b'450 Not allowed.\r\n')
+            return True
+            
         fo = self.openFile(data,'w')
         if fo == None:
             # An exception occurred with that file
@@ -440,11 +444,14 @@ class meltingpot:
         self.logfile = self.configparser.get('general', 'logfile', fallback='meltingpot.log')
         self.creds = self.configparser.get('general', 'credentials_file', fallback='creds.cfg')
         self.ftproot = self.configparser.get('general', 'ftproot',fallback='./ftproot')
+        self.enable_upload = self.configparser.getboolean('general', 'enable_upload', fallback=True)
+        
         self.upload_dir = self.configparser.get('general', 'upload_dir',fallback='./uploads')
         self.first_passive_port = self.configparser.getint('general', 'first_passive_port', fallback=30000)
         self.nb_passive_ports = self.configparser.getint('general','nb_passive_ports', fallback=9)
 
-        assert os.path.isdir(self.upload_dir), "[ERROR] Please create {0} directory".format(self.upload_dir)
+        if self.enable_upload:
+            assert os.path.isdir(self.upload_dir), "[ERROR] Please create {0} directory".format(self.upload_dir)
         assert os.path.isdir(self.ftproot), "[ERROR] ftproot directory does not exist: {0}".format(self.ftproot)
         assert os.path.exists(os.path.dirname(self.logfile)), "[ERROR] Path for logfile does not exist: {0}".format(self.logfile)
             
